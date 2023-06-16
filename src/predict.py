@@ -31,12 +31,13 @@ def get_model_argument_parser():
     parser.add_argument('--hic_resolution', type=int, help="HiC resolution")
     parser.add_argument('--tss_hic_contribution', type=float, default=100, help="Weighting of diagonal bin of hic matrix as a percentage of the maximum of its neighboring bins")
     parser.add_argument('--hic_pseudocount_distance', type=int, default=1e6, help="A pseudocount is added equal to the powerlaw fit at this distance")
-    parser.add_argument('--hic_type', default = 'juicebox', choices=['juicebox','bedpe'], help="format of hic files")
+    parser.add_argument('--hic_type', default = 'juicebox', choices=['juicebox','bedpe', 'avg'], help="format of hic files")
     parser.add_argument('--hic_is_doubly_stochastic', action='store_true', help="If hic matrix is already DS, can skip this step")
 
     #Power law
     parser.add_argument('--scale_hic_using_powerlaw', action="store_true", help="Scale Hi-C values using powerlaw relationship")
     parser.add_argument('--hic_gamma', type=float, default=.87, help="powerlaw exponent of hic data. Must be positive")
+    parser.add_argument('--hic_scale', type=float, help="scale of hic data. Must be positive")
     parser.add_argument('--hic_gamma_reference', type=float, default=.87, help="powerlaw exponent to scale to. Must be positive")
 
     #Genes to run through model
@@ -74,15 +75,15 @@ def main():
     print("reading genes")
     genes = pd.read_csv(args.genes, sep = "\t")
     genes = determine_expressed_genes(genes, args.expression_cutoff, args.promoter_activity_quantile_cutoff)
-    genes = genes.loc[:,['chr','symbol','tss','Expression','PromoterActivityQuantile','isExpressed']]
-    genes.columns = ['chr','TargetGene', 'TargetGeneTSS', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile','TargetGeneIsExpressed']
+    genes = genes.loc[:,['chr','symbol','tss','Expression','PromoterActivityQuantile','isExpressed', 'ATAC.RPKM.quantile.TSS1Kb']]
+    genes.columns = ['chr','TargetGene', 'TargetGeneTSS', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile','TargetGeneIsExpressed', 'normalized_atac']
 
     print("reading enhancers")
     enhancers_full = pd.read_csv(args.enhancers, sep = "\t")
     #TO DO
     #Think about which columns to include
-    enhancers = enhancers_full.loc[:,['chr','start','end','name','class','activity_base']]
-
+    enhancers = enhancers_full.loc[:,['chr','start','end','name','class','activity_base','normalized_atac' ]]
+    enhancers['activity_base_squared'] = enhancers['activity_base']**2
     #Initialize Prediction files
     pred_file_full = os.path.join(args.outdir, "EnhancerPredictionsFull.txt")
     pred_file_slim = os.path.join(args.outdir, "EnhancerPredictions.txt")
@@ -97,13 +98,13 @@ def main():
         chromosomes = set(genes['chr']).intersection(set(enhancers['chr'])) 
         if not args.include_chrY:
             chromosomes.discard('chrY')
+#            chromosomes.discard('chr9')
     else:
         chromosomes = args.chromosomes.split(",")
 
     for chromosome in chromosomes:
         print('Making predictions for chromosome: {}'.format(chromosome))
         t = time.time()
-
         this_enh = enhancers.loc[enhancers['chr'] == chromosome, :].copy()
         this_genes = genes.loc[genes['chr'] == chromosome, :].copy()
 
@@ -116,6 +117,7 @@ def main():
     print("Writing output files...")
     all_putative = pd.concat(all_putative_list)
     all_putative['CellType'] = args.cellType
+    all_putative['hic_contact_squared'] = all_putative['hic_contact']**2
     slim_cols = ['chr','start','end','name','TargetGene','TargetGeneTSS','CellType',args.score_column]
     if args.run_all_genes:
         all_positive = all_putative.iloc[np.logical_and.reduce((all_putative[args.score_column] > args.threshold, ~(all_putative['class'] == "promoter"))),:]
@@ -140,7 +142,6 @@ def main():
             all_putative.loc[~all_putative.TargetGeneIsExpressed,:].to_hdf(all_pred_file_nonexpressed, key='predictions', complevel=9, mode='w')
    
     test_variant_overlap(args, all_putative.loc[all_putative.TargetGeneIsExpressed,:])
-
     print("Done.")
     
 def validate_args(args):

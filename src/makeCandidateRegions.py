@@ -17,7 +17,7 @@ def parseargs(required_args=True):
     readable = argparse.FileType('r')
     
     parser.add_argument('--narrowPeak', required=required_args, help="narrowPeak file output by macs2. Must include summits (--call-summits)")
-    parser.add_argument('--bam', required=required_args, help="DNAase-Seq or ATAC-Seq bam file")
+    parser.add_argument('--bam', required=required_args, nargs='?', help="DNAase-Seq or ATAC-Seq bam file")
     parser.add_argument('--chrom_sizes', required=required_args, help="File listing chromosome size annotaions")
     parser.add_argument('--outDir', required=required_args)
     
@@ -35,11 +35,12 @@ def parseargs(required_args=True):
 def processCellType(args):
     os.makedirs(os.path.join(args.outDir), exist_ok=True)
     write_params(args, os.path.join(args.outDir, "params.txt"))
-
+    
     #Make candidate regions
     if not args.ignoreSummits:
         make_candidate_regions_from_summits(macs_peaks = args.narrowPeak, 
-                                            accessibility_file = args.bam, 
+                                            #accessibility_file = args.bam, 
+                                            accessibility_file= args.bam.split(","),
                                             genome_sizes = args.chrom_sizes, 
                                             regions_includelist = args.regions_includelist,
                                             regions_blocklist = args.regions_blocklist,
@@ -56,6 +57,8 @@ def processCellType(args):
                                     peak_extend = args.peakExtendFromSummit, 
                                     minPeakWidth = args.minPeakWidth,
                                     outdir = args.outDir)
+                                    
+
 
 def main(args):
     processCellType(args)

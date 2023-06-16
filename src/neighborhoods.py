@@ -320,8 +320,17 @@ def count_bam(bamfile, bed_file, output, genome_sizes, use_fast_count=True, verb
     bed_regions.to_csv(output, header=None, index=None, sep="\t")
 
 def count_tagalign(tagalign, bed_file, output, genome_sizes):
-    command1 = "tabix -B {tagalign} {bed_file} | cut -f1-3".format(**locals())
-    command2 = "bedtools coverage -counts -b stdin -a {bed_file} | awk '{{print $1 \"\\t\" $2 \"\\t\" $3 \"\\t\" $NF}}' ".format(**locals())
+    # command1 = "tabix -B {tagalign} {bed_file} | cut -f1-3".format(**locals())
+    index_file = tagalign + ".tbi"
+    if os.path.exists(index_file):
+      command1 = ""
+    else:
+      command1 = "tabix -p bed {tagalign} | cut -f1-3".format(**locals())
+    # command2 = "bedtools coverage -counts -b stdin -a {bed_file} | awk '{{print $1 \"\\t\" $2 \"\\t\" $3 \"\\t\" $NF}}' ".format(**locals())
+    #command2 = "bedtools sort -faidx {genome_sizes} -i {tagalign} | bedtools coverage -counts -b stdin -a {bed_file} -sorted -g {genome_sizes} | awk '{{print $1 \"\\t\" $2 \"\\t\" $3 \"\\t\" $NF}}'".format(**locals())
+    #command2 = "cat {bed_file} | cut -f1,2,3 |sort|uniq|bedtools coverage -counts -b {tagalign} -a stdin | awk '{{print $1 \"\\t\" $2 \"\\t\" $3 \"\\t\" $NF}}' ".format(**locals())
+    command2 = "bedtools coverage -counts -b {tagalign} -a {bed_file} | awk '{{print $1 \"\\t\" $2 \"\\t\" $3 \"\\t\" $NF}}' ".format(**locals())
+
     p1 = Popen(command1, stdout=PIPE, shell=True)
     with open(output, "wb") as outfp:
         p2 = check_call(command2, stdin=p1.stdout, stdout=outfp, shell=True)
@@ -368,6 +377,7 @@ def count_features_for_bed(df, bed_file, genome_sizes, features, directory, file
 
 def count_single_feature_for_bed(df, bed_file, genome_sizes, feature_bam, feature, directory, filebase, skip_rpkm_quantile, force, use_fast_count):
     orig_shape = df.shape[0]
+    print("original shape: " + str(orig_shape)) 
     feature_name = feature + "." + os.path.basename(feature_bam)
     feature_outfile = os.path.join(directory, "{}.{}.CountReads.bedgraph".format(filebase, feature_name))
 
@@ -379,6 +389,7 @@ def count_single_feature_for_bed(df, bed_file, genome_sizes, feature_bam, featur
         print("Loading coverage from pre-calculated file for {}".format(filebase + "." + feature_name))
 
     domain_counts = read_bed(feature_outfile)
+    print("domain_counts shape " + str(domain_counts.shape))
     score_column = domain_counts.columns[-1]
 
     total_counts = count_total(feature_bam)

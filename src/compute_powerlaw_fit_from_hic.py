@@ -106,10 +106,9 @@ def do_powerlaw_fit(HiC):
 
     #TO DO:
     #Print out mean/var plot of powerlaw relationship
-    # Juicebox output is in sparse matrix format. This is an attempt to get a "mean" hic_contact for each distance bin since we don't have the total # of bins available.
     HiC_summary = HiC.groupby('dist_for_fit').agg({'hic_contact' : 'sum'})
     HiC_summary['hic_contact'] = HiC_summary.hic_contact / HiC_summary.hic_contact.sum() #technically this normalization should be over the entire genome (not just to maxWindow). Will only affect intercept though..
-    res = stats.linregress(np.log(HiC_summary.index),np.log(HiC_summary['hic_contact']))
+    res = stats.linregress(np.log(HiC_summary.index), np.log(HiC_summary['hic_contact']))
 
     hic_mean_var = HiC.groupby('dist_for_fit').agg({'hic_contact' : ['mean','var']})
     hic_mean_var.columns = ['mean', 'var']
